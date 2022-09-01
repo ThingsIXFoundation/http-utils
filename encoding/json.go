@@ -6,8 +6,10 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"reflect"
 	"strings"
 
+	"github.com/go-chi/chi/middleware"
 	"github.com/golang/gddo/httputil/header"
 	"github.com/sirupsen/logrus"
 )
@@ -85,4 +87,54 @@ func DecodeHTTPJSONBody(w http.ResponseWriter, r *http.Request, to interface{}) 
 
 	msg := "Request body must only contain a single JSON object"
 	return &BadHTTPRequest{Status: http.StatusBadRequest, Msg: msg}
+}
+
+func ReplyJSON(w http.ResponseWriter, r *http.Request, statusCode int, reply interface{}) {
+	w.Header().Set("Content-Type", "application/json; charset=UTF-8")
+	w.WriteHeader(statusCode)
+	if isEmpty(reply) {
+		if _, err := w.Write([]byte("[]")); err != nil {
+			if rid, ok := r.Context().Value(middleware.RequestIDKey).(string); ok && rid != "" {
+				logrus.WithField("request_id", rid).WithError(err).Error("could not send http JSON reply")
+			} else {
+				logrus.WithError(err).Error("could not send http JSON reply")
+			}
+		}
+		return
+	}
+	if !isNil(reply) {
+		if err := json.NewEncoder(w).Encode(reply); err != nil {
+			if rid, ok := r.Context().Value(middleware.RequestIDKey).(string); ok && rid != "" {
+				logrus.WithField("request_id", rid).WithError(err).Error("could not send http JSON reply")
+			} else {
+				logrus.WithError(err).Error("could not send http JSON reply")
+			}
+		}
+		return
+	}
+}
+
+// isNil returns an indication if the given value is nil.
+// Or in case its a nullable type the value it is pointing to is nil.
+func isNil(i interface{}) bool {
+	if i == nil {
+		return true
+	}
+	switch reflect.TypeOf(i).Kind() {
+	case reflect.Ptr, reflect.Map, reflect.Array, reflect.Chan, reflect.Slice:
+		return reflect.ValueOf(i).IsNil()
+	}
+	return false
+}
+
+// isEmpty returns true if the given i is an empty array or empty slice.
+func isEmpty(i interface{}) bool {
+	if i == nil {
+		return false
+	}
+	switch reflect.TypeOf(i).Kind() {
+	case reflect.Array, reflect.Slice:
+		return reflect.ValueOf(i).IsNil() || reflect.ValueOf(i).Len() == 0
+	}
+	return false
 }
