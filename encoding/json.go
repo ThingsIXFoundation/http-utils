@@ -76,7 +76,7 @@ func DecodeHTTPJSONBody(w http.ResponseWriter, r *http.Request, to interface{}) 
 
 		default:
 			logrus.WithError(err).Error("unable to decode json request")
-			return &BadHTTPRequest{Status: http.StatusInternalServerError, Msg: http.StatusText(http.StatusInternalServerError)}
+			return &BadHTTPRequest{Status: http.StatusBadRequest, Msg: http.StatusText(http.StatusBadRequest)}
 		}
 	}
 
